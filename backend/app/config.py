@@ -17,7 +17,8 @@ class BaseConfig:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(
         days=int(os.environ.get("JWT_REFRESH_TOKEN_EXPIRES_DAYS", 30))
     )
-   
+    # Tokens are only ever read from the Authorization header, never from
+    # cookies or query strings - removes a whole class of CSRF/XSS token-leak risk.
     JWT_TOKEN_LOCATION = ["headers"]
     JWT_HEADER_TYPE = "Bearer"
 
@@ -27,6 +28,9 @@ class BaseConfig:
 
     MAX_FAILED_LOGIN_ATTEMPTS = int(os.environ.get("MAX_FAILED_LOGIN_ATTEMPTS", 5))
     ACCOUNT_LOCKOUT_MINUTES = int(os.environ.get("ACCOUNT_LOCKOUT_MINUTES", 15))
+
+    OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
+    OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", 5))
 
 
 class DevelopmentConfig(BaseConfig):
