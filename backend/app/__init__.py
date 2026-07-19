@@ -36,11 +36,13 @@ def _init_extensions(app):
 def _register_blueprints(app):
     from app.api.v1.auth.routes import auth_bp
     from app.api.v1.planner.routes import planner_bp
+    from app.api.v1.wellbeing.routes import wellbeing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(planner_bp)
-    # Future blueprints (wellbeing_bp, appointments_bp, billing_bp)
-    # register here the same way once each module is built.
+    app.register_blueprint(wellbeing_bp)
+    # Future blueprints (appointments_bp, billing_bp) register here the
+    # same way once each module is built.
 
 
 def _register_error_handlers(app):

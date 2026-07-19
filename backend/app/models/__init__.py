@@ -7,6 +7,7 @@ from app.models.return_to_work_plan import (
     WorkType,
     TaskCategory,
 )
+from app.models.check_in import CheckIn
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "ChildcareArrangement",
     "WorkType",
     "TaskCategory",
+    "CheckIn",
 ]
