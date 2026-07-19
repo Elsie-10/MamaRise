@@ -1,4 +1,5 @@
 import re
+from datetime import date
 
 from marshmallow import Schema, fields, validate, validates, ValidationError
 
@@ -85,3 +86,13 @@ class RefreshSchema(Schema):
     # refresh token itself comes via Authorization header, this is left
     # empty intentionally as a placeholder if you later add device binding
     pass
+
+
+class UpdateProfileSchema(Schema):
+    full_name = fields.Str(required=False, validate=validate.Length(min=2, max=150))
+    baby_birth_date = fields.Date(required=False, allow_none=True)
+
+    @validates("baby_birth_date")
+    def check_birth_date_not_future(self, value, **kwargs):
+        if value and value > date.today():
+            raise ValidationError("Birth date cannot be in the future.")
