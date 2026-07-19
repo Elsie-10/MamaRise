@@ -8,6 +8,7 @@ from app.models.return_to_work_plan import (
     TaskCategory,
 )
 from app.models.check_in import CheckIn
+from app.models.milestone import Milestone, NotificationPreference, MilestoneType
 
 __all__ = [
     "User",
@@ -20,4 +21,7 @@ __all__ = [
     "WorkType",
     "TaskCategory",
     "CheckIn",
+    "Milestone",
+    "NotificationPreference",
+    "MilestoneType",
 ]
