@@ -9,6 +9,14 @@ from app.models.return_to_work_plan import (
 )
 from app.models.check_in import CheckIn
 from app.models.milestone import Milestone, NotificationPreference, MilestoneType
+from app.models.billing import (
+    Subscription,
+    EmployerOrganization,
+    EmployerEnrollment,
+    SubscriptionTier,
+    SubscriptionStatus,
+    EnrollmentStatus,
+)
 
 __all__ = [
     "User",
@@ -24,4 +32,10 @@ __all__ = [
     "Milestone",
     "NotificationPreference",
     "MilestoneType",
+    "Subscription",
+    "EmployerOrganization",
+    "EmployerEnrollment",
+    "SubscriptionTier",
+    "SubscriptionStatus",
+    "EnrollmentStatus",
 ]

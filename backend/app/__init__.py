@@ -39,13 +39,14 @@ def _register_blueprints(app):
     from app.api.v1.wellbeing.routes import wellbeing_bp
     from app.api.v1.appointments.routes import appointments_bp
     from app.api.v1.dashboard.routes import dashboard_bp
+    from app.api.v1.billing.routes import billing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(planner_bp)
     app.register_blueprint(wellbeing_bp)
     app.register_blueprint(appointments_bp)
     app.register_blueprint(dashboard_bp)
-    # Future blueprint (billing_bp) registers here the same way once built.
+    app.register_blueprint(billing_bp)
 
 
 def _register_error_handlers(app):
