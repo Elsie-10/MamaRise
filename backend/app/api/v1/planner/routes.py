@@ -118,10 +118,6 @@ def delete_plan(plan_id):
     return success_response({"message": "Plan deleted."})
 
 
-# ---------------------------------------------------------------------------
-# Checklist items
-# ---------------------------------------------------------------------------
-
 @planner_bp.route("/plans/<plan_id>/checklist", methods=["POST"])
 @jwt_required()
 def add_checklist_item(plan_id):
@@ -202,9 +198,6 @@ def delete_checklist_item(item_id):
     return success_response({"message": "Checklist item deleted."})
 
 
-# ---------------------------------------------------------------------------
-# Childcare arrangement (one per plan - upsert semantics)
-# ---------------------------------------------------------------------------
 
 @planner_bp.route("/plans/<plan_id>/childcare", methods=["PUT"])
 @jwt_required()
