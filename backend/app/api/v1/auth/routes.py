@@ -17,6 +17,7 @@ from app.api.v1.auth.schemas import (
     LoginSchema,
     ForgotPasswordSchema,
     ResetPasswordSchema,
+    UpdateProfileSchema,
 )
 from app.services.otp_service import create_otp_for_user, verify_otp
 from app.services.sms_service import sms_service
@@ -28,6 +29,7 @@ register_schema = RegisterSchema()
 login_schema = LoginSchema()
 forgot_password_schema = ForgotPasswordSchema()
 reset_password_schema = ResetPasswordSchema()
+update_profile_schema = UpdateProfileSchema()
 
 
 def _issue_token_pair(user: User):
@@ -198,6 +200,32 @@ def get_current_user():
     user = db.session.get(User, user_id)
     if not user:
         return error_response("NOT_FOUND", "User not found.", 404)
+    return success_response(user.to_public_dict())
+
+
+@auth_bp.route("/me", methods=["PATCH"])
+@jwt_required()
+def update_current_user():
+    """Lets a user set/update profile fields that weren't required at
+    signup - currently full_name and baby_birth_date. This is where the
+    postpartum-week indicator on the Dashboard gets its data from."""
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return error_response("NOT_FOUND", "User not found.", 404)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        data = update_profile_schema.load(payload, partial=True)
+    except ValidationError as err:
+        return error_response("VALIDATION_ERROR", "Invalid profile update.", 422, err.messages)
+
+    if "full_name" in data:
+        user.full_name = data["full_name"]
+    if "baby_birth_date" in data:
+        user.baby_birth_date = data["baby_birth_date"]
+
+    db.session.commit()
     return success_response(user.to_public_dict())
 
 

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 from enum import Enum
 
 from argon2 import PasswordHasher
@@ -29,6 +29,12 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(150), nullable=False)
     role = db.Column(db.String(20), nullable=False, default=UserRole.MOTHER.value)
+
+    # Optional - not required at signup since a mother may register before
+    # she's ready to enter this, or the app may support pre-birth users
+    # later. Powers the postpartum-week indicator on the Dashboard; null
+    # simply means that indicator doesn't show yet.
+    baby_birth_date = db.Column(db.Date, nullable=True)
 
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
@@ -72,6 +78,15 @@ class User(db.Model):
         self.failed_login_attempts = 0
         self.locked_until = None
 
+    def postpartum_weeks(self):
+        """Returns None if no birth date is set yet - callers must handle
+        that as 'don't show this indicator', not as zero."""
+        if not self.baby_birth_date:
+            return None
+        if self.baby_birth_date > date.today():
+            return None  # future date shouldn't happen, but never show negative weeks
+        return (date.today() - self.baby_birth_date).days // 7
+
     def to_public_dict(self) -> dict:
         """Safe subset of fields for API responses - never leaks password_hash."""
         return {
@@ -81,6 +96,8 @@ class User(db.Model):
             "full_name": self.full_name,
             "role": self.role,
             "is_email_verified": self.is_email_verified,
+            "baby_birth_date": self.baby_birth_date.isoformat() if self.baby_birth_date else None,
+            "postpartum_weeks": self.postpartum_weeks(),
             "created_at": self.created_at.isoformat(),
         }
 

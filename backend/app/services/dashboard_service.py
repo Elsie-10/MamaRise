@@ -59,6 +59,7 @@ def build_dashboard(user) -> dict:
 
     return {
         "greeting": greeting,
+        "postpartum_weeks": user.postpartum_weeks(),
         "has_checked_in_today": today_checkin is not None,
         "todays_checkin": today_checkin.to_dict() if today_checkin else None,
         "next_milestone": next_milestone.to_dict() if next_milestone else None,
