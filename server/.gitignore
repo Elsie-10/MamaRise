@@ -1,0 +1,85 @@
+#Python 
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+#Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+#Flask / Instance Config
+instance/
+.env
+.env.*
+!.env.example
+*.cfg
+config.local.py
+
+#Database
+*.db
+*.sqlite3
+*.sqlite
+migrations/versions/__pycache__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+#Testing / Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+
+#Logs
+*.log
+logs/
+
+#IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+#  OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+*.pid
+
+#Node (if frontend lives in same repo / tooling scripts)
+node_modules/
+
+# Secrets / Keys
+*.pem
+*.key
+secrets.json
