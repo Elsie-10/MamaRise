@@ -4,6 +4,7 @@ import LandingPage from "./pages/landing/LandingPage";
 import AuthPage from "./pages/auth/AuthPage";
 import MotherDashboard from "./pages/dashboard/MotherDashboard";
 import WellbeingPage from "./pages/wellbeing/WellbeingPage";
+import PlannerPage from "./pages/planner/PlannerPage";
 
 import AppLayout from "./layouts/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -31,10 +32,7 @@ function App() {
           <Route path="/dashboard" element={<MotherDashboard />} />
           <Route path="/wellbeing" element={<WellbeingPage />} />
 
-          <Route
-            path="/planner"
-            element={<ComingSoon page="Return-to-Work Planner" />}
-          />
+          <Route path="/planner" element={<PlannerPage />} />
 
           <Route
             path="/appointments"
