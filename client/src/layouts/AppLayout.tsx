@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   BriefcaseBusiness,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -20,10 +21,12 @@ const motherNavigation = [
   { label: "Wellbeing", path: "/wellbeing", icon: HeartPulse },
   { label: "Return-to-Work Planner", path: "/planner", icon: ClipboardList },
   { label: "Appointments", path: "/appointments", icon: CalendarDays },
+  { label: "Billing", path: "/billing", icon: CreditCard },
 ];
 
 const employerNavigation = [
   { label: "Employer Portal", path: "/employer", icon: BriefcaseBusiness },
+  { label: "Billing", path: "/billing", icon: CreditCard },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -32,6 +35,7 @@ const pageTitles: Record<string, string> = {
   "/planner": "Return-to-Work Planner",
   "/appointments": "Appointments",
   "/employer": "Employer Portal",
+  "/billing": "Subscription & Billing",
 };
 
 /* Palette: light #e6f5f8 | cyan #3cc3dd | deep #0d5694 | grey #626569 */

@@ -6,6 +6,7 @@ import MotherDashboard from "./pages/dashboard/MotherDashboard";
 import WellbeingPage from "./pages/wellbeing/WellbeingPage";
 import PlannerPage from "./pages/planner/PlannerPage";
 import AppointmentsPage from "./pages/appointments/AppointmentsPage";
+import BillingPage from "./pages/billing/BillingPage";
 
 import AppLayout from "./layouts/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -26,6 +27,13 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthPage />} />
       <Route path="/register" element={<AuthPage />} />
+
+      {/* Shared authenticated pages */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}>
+          <Route path="/billing" element={<BillingPage />} />
+        </Route>
+      </Route>
 
       {/* Mother application */}
       <Route element={<ProtectedRoute allowedRoles={["mother"]} />}>
