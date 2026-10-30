@@ -187,7 +187,10 @@ export default function PlannerPage() {
     void Promise.resolve().then(loadPlan);
   }, [loadPlan]);
 
-  const checklist = plan?.checklist_items ?? [];
+  const checklist = useMemo(
+    () => plan?.checklist_items ?? [],
+    [plan?.checklist_items],
+  );
 
   const completedCount = useMemo(
     () => checklist.filter((item) => item.is_completed).length,
