@@ -22,7 +22,10 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   }
 
   if (allowedRoles && (!user || !allowedRoles.includes(user.role))) {
-    return <Navigate to="/dashboard" replace />;
+    const fallbackRoute =
+      user?.role === "employer" ? "/employer" : "/dashboard";
+
+    return <Navigate to={fallbackRoute} replace />;
   }
 
   return <Outlet />;
