@@ -11,6 +11,7 @@ import {
   User,
   UserRound,
   BriefcaseBusiness,
+  CheckCircle2,
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
@@ -21,17 +22,21 @@ type AuthMode = "login" | "register";
 const CONSENT_VERSION = "1.0";
 
 /*
-  Palette taken from the reference design (arbitrary Tailwind values,
-  so no theme config is required):
-  page bg   #5c0838 -> #860f55     panel   #d874a6 -> #c45f93
-  button    #c2437f -> #a02c68     input   #f3f3f3 / border #dcdcdc
+  Palette (same as the landing page and dashboard):
+  light #e6f5f8 | cyan #3cc3dd | blue #1a77ab | deep #0d5694 | grey #626569
 */
 
 const inputClass =
-  "w-full rounded-lg border border-[#dcdcdc] bg-[#f3f3f3] px-4 py-3 pr-11 text-sm text-[#333] outline-none transition placeholder:text-[#8a8a8a] focus:border-[#c2437f] focus:bg-white focus:ring-4 focus:ring-[#c2437f]/15";
+  "w-full rounded-lg border border-[#d3eaf0] bg-[#f3fafc] px-4 py-3 pr-11 text-sm text-[#2a2f33] outline-none transition placeholder:text-[#8a9399] focus:border-[#3cc3dd] focus:bg-white focus:ring-4 focus:ring-[#3cc3dd]/20";
 
 const gradientButton =
-  "bg-gradient-to-b from-[#c2437f] to-[#a02c68] text-white shadow-md shadow-[#a02c68]/30";
+  "bg-gradient-to-b from-[#3cc3dd] to-[#0d5694] text-white shadow-md shadow-[#0d5694]/25";
+
+const panelPoints = [
+  "Postpartum wellbeing support",
+  "Practical return-to-work planning",
+  "Your information handled securely",
+];
 
 function Field({
   id,
@@ -52,7 +57,7 @@ function Field({
       <div className="relative">
         {children}
         {icon && (
-          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#4a4a4a]">
+          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#0d5694]">
             {icon}
           </span>
         )}
@@ -156,44 +161,61 @@ export default function AuthPage() {
   const isRegistering = mode === "register";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,#860f55_0%,#5c0838_100%)] p-4 font-sans sm:p-8">
-      <div className="relative w-full max-w-[920px] overflow-hidden rounded-[1.25rem] bg-white shadow-2xl shadow-black/40 md:flex md:min-h-[520px]">
-        {/* ---------- Pink welcome panel (slides sides on desktop) ---------- */}
+    <main className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-[#e6f5f8] p-4 font-sans sm:p-8">
+      {/* Soft background shapes (same as the landing page and app layout) */}
+      <div className="pointer-events-none absolute -right-24 -top-24 -z-10 h-96 w-96 rounded-full bg-[#3cc3dd]/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -left-20 -z-10 h-96 w-96 rounded-full bg-[#0d5694]/15 blur-3xl" />
+
+      <div className="relative w-full max-w-[960px] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl shadow-[#0d5694]/20 md:flex md:min-h-[600px]">
+        {/* ---------- Welcome panel (slides sides on desktop) ---------- */}
         <section
-          className={`relative overflow-hidden bg-gradient-to-br from-[#dc7aab] to-[#c45f93] px-6 pb-12 pt-16 text-center text-white transition-all duration-500 md:absolute md:inset-y-0 md:w-1/2 md:px-10 md:py-0 ${
+          className={`relative overflow-hidden bg-gradient-to-br from-[#3cc3dd] via-[#1a77ab] to-[#0d5694] px-6 pb-14 pt-16 text-center text-white transition-all duration-500 md:absolute md:inset-y-0 md:w-1/2 md:px-12 md:pb-0 md:pt-0 md:text-left ${
             isRegistering ? "md:left-1/2" : "md:left-0"
           }`}
         >
-          <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
+          {/* decoration */}
+          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-60 w-60 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute right-10 top-1/3 hidden h-9 w-9 rotate-12 rounded-xl bg-white/20 md:block" />
+          <div className="pointer-events-none absolute bottom-16 right-16 hidden h-6 w-6 rotate-12 rounded-lg bg-white/20 md:block" />
 
-          <div className="absolute inset-x-0 top-5 flex items-center justify-center gap-2 text-sm font-semibold text-white/90">
-            <Flower2 size={20} />
+          {/* brand */}
+          <div className="absolute inset-x-0 top-5 flex items-center justify-center gap-2 text-base font-bold text-white md:top-8 md:justify-start md:px-12">
+            <Flower2 size={24} />
             MamaRise
           </div>
 
-          <div className="relative flex h-full flex-col items-center justify-center md:px-4">
-            <h2 className="text-3xl font-extrabold tracking-wide md:text-4xl">
-              WELCOME!
+          <div className="relative flex h-full flex-col items-center justify-center md:items-start md:pt-10">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/80 md:text-sm">
+              {isRegistering ? "Join MamaRise" : "Welcome back"}
+            </p>
+
+            <h2 className="mt-3 text-4xl font-extrabold leading-[1.1] tracking-tight md:text-5xl">
+              {isRegistering ? "Rise with us." : "Welcome back!"}
             </h2>
 
-            <p className="mt-3 max-w-[260px] text-xs leading-5 text-white/95 md:text-sm md:leading-6">
-              {isRegistering ? (
-                <>
-                  <b>SIGN UP</b> to join a supportive community, or <b>LOGIN</b>{" "}
-                  if you already have an account.
-                </>
-              ) : (
-                <>
-                  <b>LOGIN</b> and <b>SIGN UP</b> to securely access your
-                  account.
-                </>
-              )}
+            <p className="mt-4 max-w-sm text-base leading-7 text-white/95 md:mt-5 md:text-lg md:leading-8">
+              {isRegistering
+                ? "Whether you're a mother planning your next chapter or an employer building a more supportive workplace, create your account in minutes."
+                : "Sign in to continue your journey. Your wellbeing check-ins, return-to-work plan and appointments are right where you left them."}
             </p>
+
+            <ul className="mt-7 hidden space-y-3 md:block">
+              {panelPoints.map((point) => (
+                <li
+                  key={point}
+                  className="flex items-center gap-3 text-sm font-semibold text-white md:text-base"
+                >
+                  <CheckCircle2 size={20} className="shrink-0 text-white" />
+                  {point}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
         {/* ---------- Mode toggle pill (straddles the panel edge) ---------- */}
-        <div className="relative z-20 mx-auto -my-5 flex w-fit flex-row gap-1 rounded-full bg-white p-1.5 shadow-xl shadow-black/20 md:absolute md:left-1/2 md:top-1/2 md:m-0 md:-translate-x-1/2 md:-translate-y-1/2 md:flex-col md:rounded-[1.4rem]">
+        <div className="relative z-20 mx-auto -my-5 flex w-fit flex-row gap-1 rounded-full bg-white p-1.5 shadow-xl shadow-[#0d5694]/20 md:absolute md:left-1/2 md:top-1/2 md:m-0 md:-translate-x-1/2 md:-translate-y-1/2 md:flex-col md:rounded-[1.4rem]">
           {(
             [
               ["login", "LOGIN"],
@@ -205,10 +227,10 @@ export default function AuthPage() {
               type="button"
               onClick={() => switchMode(value)}
               aria-pressed={mode === value}
-              className={`rounded-full px-4 py-2 text-[11px] font-extrabold tracking-wide transition ${
+              className={`rounded-full px-5 py-2.5 text-xs font-extrabold tracking-wide transition ${
                 mode === value
                   ? gradientButton
-                  : "text-[#333] hover:text-[#a02c68]"
+                  : "text-[#626569] hover:text-[#0d5694]"
               }`}
             >
               {label}
@@ -224,15 +246,15 @@ export default function AuthPage() {
         >
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-6 flex flex-col items-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#ec7fab] to-[#b83f7e] shadow-md shadow-[#b83f7e]/30">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#3cc3dd] to-[#0d5694] shadow-lg shadow-[#0d5694]/25">
                 <UserRound
                   size={26}
                   fill="currentColor"
-                  className="text-[#5b1038]"
+                  className="text-white"
                 />
               </div>
 
-              <h1 className="mt-3 text-sm font-extrabold tracking-wide text-[#333]">
+              <h1 className="mt-3 text-lg font-extrabold tracking-wide text-[#626569]">
                 {isRegistering ? "SIGN UP" : "LOGIN"}
               </h1>
             </div>
@@ -275,7 +297,7 @@ export default function AuthPage() {
                   </Field>
 
                   <div>
-                    <p className="mb-2 text-xs font-semibold text-[#555]">
+                    <p className="mb-2 text-xs font-semibold text-[#626569]">
                       I am joining as
                     </p>
 
@@ -294,7 +316,7 @@ export default function AuthPage() {
                           className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-xs font-bold transition ${
                             role === value
                               ? `border-transparent ${gradientButton}`
-                              : "border-[#dcdcdc] bg-[#f3f3f3] text-[#555] hover:border-[#c2437f]"
+                              : "border-[#d3eaf0] bg-[#f3fafc] text-[#626569] hover:border-[#3cc3dd]"
                           }`}
                         >
                           <Icon size={16} />
@@ -330,7 +352,7 @@ export default function AuthPage() {
                       showPassword ? "Hide password" : "Show password"
                     }
                     title={showPassword ? "Hide password" : "Show password"}
-                    className="hover:text-[#a02c68]"
+                    className="hover:text-[#3cc3dd]"
                   >
                     {showPassword ? <Eye size={17} /> : <Lock size={17} />}
                   </button>
@@ -366,7 +388,7 @@ export default function AuthPage() {
                       title={
                         showConfirmPassword ? "Hide password" : "Show password"
                       }
-                      className="hover:text-[#a02c68]"
+                      className="hover:text-[#3cc3dd]"
                     >
                       {showConfirmPassword ? (
                         <Eye size={17} />
@@ -393,7 +415,7 @@ export default function AuthPage() {
                 <div className="text-right">
                   <Link
                     to="/forgot-password"
-                    className="text-[11px] text-[#444] underline underline-offset-2 hover:text-[#a02c68]"
+                    className="text-xs font-semibold text-[#0d5694] underline underline-offset-2 hover:text-[#3cc3dd]"
                   >
                     Forgot Password?
                   </Link>
@@ -401,12 +423,12 @@ export default function AuthPage() {
               )}
 
               {isRegistering && (
-                <label className="flex items-start gap-2.5 text-xs leading-5 text-[#666]">
+                <label className="flex items-start gap-2.5 text-xs leading-5 text-[#626569]">
                   <input
                     type="checkbox"
                     checked={consentGiven}
                     onChange={(event) => setConsentGiven(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#a02c68]"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#0d5694]"
                   />
                   <span>
                     I agree to the privacy policy and consent to the processing
@@ -418,7 +440,7 @@ export default function AuthPage() {
               {errorMessage && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-[#f5c2d8] bg-[#fdecf3] px-4 py-2.5 text-xs text-[#a02c68]"
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-600"
                 >
                   {errorMessage}
                 </div>
@@ -440,7 +462,7 @@ export default function AuthPage() {
             </form>
 
             {/* Social */}
-            <p className="mt-5 text-center text-xs text-[#777]">
+            <p className="mt-5 text-center text-xs text-[#626569]">
               {isRegistering ? "Or sign up with" : "Or login with"}
             </p>
 
