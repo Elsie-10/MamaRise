@@ -23,6 +23,9 @@ class OtpCode(db.Model):
     attempts = db.Column(db.Integer, default=0, nullable=False)
     is_used = db.Column(db.Boolean, default=False, nullable=False)
 
+    reset_token_hash = db.Column(db.String(64), nullable=True)
+    reset_token_expires_at = db.Column(db.DateTime, nullable=True)
+
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 

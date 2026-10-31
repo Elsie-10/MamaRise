@@ -1,7 +1,14 @@
 import re
 from datetime import date
 
-from marshmallow import Schema, fields, validate, validates, ValidationError
+from marshmallow import (
+    Schema,
+    fields,
+    validate,
+    validates,
+    validates_schema,
+    ValidationError,
+)
 
 PASSWORD_MIN_LENGTH = 10
 
@@ -61,26 +68,70 @@ class LoginSchema(Schema):
 
 
 class ForgotPasswordSchema(Schema):
-    phone_number = fields.Str(required=True)
+    phone_number = fields.Str(required=False, allow_none=True)
+    email = fields.Email(required=False, allow_none=True)
 
     @validates("phone_number")
     def check_phone(self, value, **kwargs):
-        validate_kenyan_phone(value)
+        if value:
+            validate_kenyan_phone(value)
+
+    @validates_schema
+    def check_contact_method(self, data, **kwargs):
+        phone = data.get("phone_number")
+        email = data.get("email")
+
+        if not phone and not email:
+            raise ValidationError(
+                "Provide either a phone number or an email address."
+            )
+
+        if phone and email:
+            raise ValidationError(
+                "Provide only one recovery method at a time."
+            )
 
 
-class ResetPasswordSchema(Schema):
-    phone_number = fields.Str(required=True)
-    otp_code = fields.Str(required=True, validate=validate.Length(equal=6))
+class VerifyResetCodeSchema(Schema):
+    phone_number = fields.Str(required=False, allow_none=True)
+    email = fields.Email(required=False, allow_none=True)
+
+    otp_code = fields.Str(
+        required=True,
+        validate=[
+            validate.Length(equal=6),
+            validate.Regexp(r"^\d{6}$"),
+        ],
+    )
+
+    @validates("phone_number")
+    def check_phone(self, value, **kwargs):
+        if value:
+            validate_kenyan_phone(value)
+
+    @validates_schema
+    def check_contact_method(self, data, **kwargs):
+        phone = data.get("phone_number")
+        email = data.get("email")
+
+        if not phone and not email:
+            raise ValidationError(
+                "Provide either a phone number or an email address."
+            )
+
+        if phone and email:
+            raise ValidationError(
+                "Provide only one recovery method at a time."
+            )
+
+
+class CompletePasswordResetSchema(Schema):
+    reset_token = fields.Str(required=True, validate=validate.Length(min=32))
     new_password = fields.Str(required=True, load_only=True)
-
-    @validates("phone_number")
-    def check_phone(self, value, **kwargs):
-        validate_kenyan_phone(value)
 
     @validates("new_password")
     def check_password(self, value, **kwargs):
         validate_password_strength(value)
-
 
 class RefreshSchema(Schema):
     # refresh token itself comes via Authorization header, this is left

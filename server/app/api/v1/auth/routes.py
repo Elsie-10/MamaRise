@@ -16,28 +16,52 @@ from app.api.v1.auth.schemas import (
     RegisterSchema,
     LoginSchema,
     ForgotPasswordSchema,
-    ResetPasswordSchema,
+    VerifyResetCodeSchema,
+    CompletePasswordResetSchema,
     UpdateProfileSchema,
 )
-from app.services.otp_service import create_otp_for_user, verify_otp
+from app.services.otp_service import (
+    create_otp_for_user,
+    invalidate_otp,
+    verify_reset_code,
+    find_valid_reset_token,
+)
 from app.services.sms_service import sms_service
 from app.utils.responses import success_response, error_response
+
+from app.services.notification_service import notification_service
+
+from sqlalchemy import update
+
+from app.models.otp import OtpCode
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
 
 register_schema = RegisterSchema()
 login_schema = LoginSchema()
 forgot_password_schema = ForgotPasswordSchema()
-reset_password_schema = ResetPasswordSchema()
+verify_reset_code_schema = VerifyResetCodeSchema()
+complete_password_reset_schema = CompletePasswordResetSchema()
 update_profile_schema = UpdateProfileSchema()
 
 
 def _issue_token_pair(user: User):
-    """Access token carries role as a claim so role_required() never hits the DB.
-    Refresh token stays minimal - just identity."""
-    additional_claims = {"role": user.role}
-    access_token = create_access_token(identity=user.id, additional_claims=additional_claims)
-    refresh_token = create_refresh_token(identity=user.id, additional_claims=additional_claims)
+    """Issue access and refresh tokens with role and session version claims."""
+    additional_claims = {
+        "role": user.role,
+        "token_version": user.token_version,
+    }
+
+    access_token = create_access_token(
+        identity=user.id,
+        additional_claims=additional_claims,
+    )
+
+    refresh_token = create_refresh_token(
+        identity=user.id,
+        additional_claims=additional_claims,
+    )
+
     return access_token, refresh_token
 
 
@@ -230,64 +254,182 @@ def update_current_user():
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
-@limiter.limit("3 per 15 minutes")  # OTP requests are the easiest thing to abuse/spam
+@limiter.limit("3 per 15 minutes")
 def forgot_password():
     payload = request.get_json(silent=True) or {}
 
     try:
         data = forgot_password_schema.load(payload)
     except ValidationError as err:
-        return error_response("VALIDATION_ERROR", "Invalid phone number.", 422, err.messages)
+        return error_response(
+            "VALIDATION_ERROR",
+            "Invalid recovery details.",
+            422,
+            err.messages,
+        )
 
-    normalized_phone = _normalize_phone(data["phone_number"])
-    user = User.query.filter_by(phone_number=normalized_phone).first()
+    phone = data.get("phone_number")
+    email = data.get("email")
 
-    # Always return the same success response whether or not the number is
-    # registered - prevents attackers from using this endpoint to discover
-    # which phone numbers have accounts.
+    if phone:
+        contact = _normalize_phone(phone)
+        user = User.query.filter_by(phone_number=contact).first()
+    else:
+        contact = email.strip().lower()
+        user = User.query.filter_by(email=contact).first()
+
     generic_message = {
-        "message": "If this number is registered, a verification code has been sent."
+        "message": (
+            "If an account is registered with those details, "
+            "a verification code has been sent."
+        )
     }
 
     if not user or not user.is_active:
         return success_response(generic_message)
 
-    raw_code = create_otp_for_user(user.id, purpose="password_reset")
-    sms_service.send(
-        normalized_phone,
-        f"Your MamaRise password reset code is {raw_code}. It expires in "
-        f"{current_app.config.get('OTP_EXPIRY_MINUTES', 10)} minutes. "
-        f"Never share this code with anyone.",
+    raw_code, otp_id = create_otp_for_user(
+        user.id,
+        purpose="password_reset",
     )
+
+    if phone:
+        delivered = sms_service.send(
+            contact,
+            (
+                f"Your MamaRise password reset code is {raw_code}. "
+                f"It expires in {current_app.config.get('OTP_EXPIRY_MINUTES', 10)} "
+                "minutes. Never share this code with anyone."
+            ),
+        )
+    else:
+        delivered = notification_service.send_password_reset_email(
+            contact,
+            raw_code,
+        )
+
+    if not delivered:
+        invalidate_otp(otp_id)
 
     return success_response(generic_message)
 
-
-@auth_bp.route("/reset-password", methods=["POST"])
-@limiter.limit("5 per 15 minutes")  # throttles OTP brute-forcing independent of per-code attempt limit
-def reset_password():
-    payload = request.get_json(silent=True) or {}
-
+@auth_bp.route("/verify-reset-code", methods=["POST"])
+@limiter.limit("5 per 15 minutes")
+def verify_reset_code_route():
     try:
-        data = reset_password_schema.load(payload)
+        data = verify_reset_code_schema.load(
+            request.get_json(silent=True) or {}
+        )
     except ValidationError as err:
-        return error_response("VALIDATION_ERROR", "Invalid reset data.", 422, err.messages)
+        return error_response(
+            "VALIDATION_ERROR",
+            "Invalid verification data.",
+            422,
+            err.messages,
+        )
 
-    normalized_phone = _normalize_phone(data["phone_number"])
-    user = User.query.filter_by(phone_number=normalized_phone).first()
+    phone = data.get("phone_number")
+    email = data.get("email")
 
-    generic_error = lambda: error_response(
-        "INVALID_OR_EXPIRED_CODE", "The code is invalid or has expired.", 400
-    )
+    if phone:
+        phone = _normalize_phone(phone)
+        user = User.query.filter_by(phone_number=phone).first()
+    else:
+        email = email.strip().lower()
+        user = User.query.filter_by(email=email).first()
 
     if not user or not user.is_active:
-        return generic_error()
+        return error_response(
+            "INVALID_OR_EXPIRED_CODE",
+            "The code is invalid or has expired.",
+            400,
+        )
 
-    if not verify_otp(user.id, data["otp_code"], purpose="password_reset"):
-        return generic_error()
+    reset_token = verify_reset_code(
+        user.id,
+        data["otp_code"],
+        purpose="password_reset",
+    )
 
+    if not reset_token:
+        return error_response(
+            "INVALID_OR_EXPIRED_CODE",
+            "The code is invalid or has expired.",
+            400,
+        )
+
+    return success_response({
+        "reset_token": reset_token,
+        "message": "Verification successful.",
+    })
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit("5 per 15 minutes")
+def reset_password():
+    try:
+        data = complete_password_reset_schema.load(
+            request.get_json(silent=True) or {}
+        )
+    except ValidationError as err:
+        return error_response(
+            "VALIDATION_ERROR",
+            "Invalid password reset data.",
+            422,
+            err.messages,
+        )
+
+    otp = find_valid_reset_token(data["reset_token"])
+
+    if not otp:
+        return error_response(
+            "INVALID_OR_EXPIRED_TOKEN",
+            "The password reset session is invalid or has expired.",
+            400,
+        )
+
+    user = db.session.get(User, otp.user_id)
+
+    if not user or not user.is_active:
+        return error_response(
+            "INVALID_OR_EXPIRED_TOKEN",
+            "The password reset session is invalid or has expired.",
+            400,
+        )
+
+    now = datetime.utcnow()
+
+    # Atomically consume the reset token.
+    # Only one concurrent request can successfully update this record.
+    result = db.session.execute(
+        update(OtpCode)
+        .where(
+            OtpCode.id == otp.id,
+            OtpCode.reset_token_hash == otp.reset_token_hash,
+            OtpCode.reset_token_expires_at > now,
+        )
+        .values(
+            reset_token_hash=None,
+            reset_token_expires_at=None,
+        )
+        .execution_options(synchronize_session=False)
+    )
+
+    if result.rowcount != 1:
+        db.session.rollback()
+        return error_response(
+            "INVALID_OR_EXPIRED_TOKEN",
+            "The password reset session is invalid or has expired.",
+            400,
+        )
+
+    # Update the password in the same database transaction.
     user.set_password(data["new_password"])
-    user.reset_login_attempts()  # clears any lockout too - legitimate owner just proved identity
+    user.reset_login_attempts()
+    user.token_version += 1
+
     db.session.commit()
 
-    return success_response({"message": "Password reset successfully. Please log in."})
+    return success_response({
+        "message": "Your password has been reset successfully.",
+    })

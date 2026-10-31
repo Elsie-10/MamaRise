@@ -39,6 +39,9 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Incremented after password changes to invalidate existing JWT sessions.
+    token_version = db.Column(db.Integer, default=0, nullable=False)
+
     # Account lockout tracking - stops brute force without exposing why to the caller
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime, nullable=True)

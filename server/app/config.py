@@ -32,6 +32,18 @@ class BaseConfig:
     OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
     OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", 5))
 
+    RESET_TOKEN_EXPIRY_MINUTES = int(
+        os.environ.get("RESET_TOKEN_EXPIRY_MINUTES", 10)
+    )
+
+    # Email configuration
+    MAIL_SERVER = os.environ.get("MAIL_SERVER")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER")
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

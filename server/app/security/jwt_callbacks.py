@@ -3,7 +3,7 @@ from datetime import datetime
 from flask_jwt_extended import JWTManager
 
 from app.extensions import db
-from app.models.user import TokenBlocklist
+from app.models.user import User, TokenBlocklist
 from app.utils.responses import error_response
 
 
@@ -12,8 +12,21 @@ def register_jwt_callbacks(jwt: JWTManager):
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         jti = jwt_payload["jti"]
+
         token = db.session.query(TokenBlocklist).filter_by(jti=jti).first()
-        return token is not None
+
+        if token is not None:
+            return True
+
+        user_id = jwt_payload.get("sub")
+        user = db.session.get(User, user_id)
+
+        if not user or not user.is_active:
+            return True
+
+        token_version = jwt_payload.get("token_version", 0)
+
+        return token_version != user.token_version
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):

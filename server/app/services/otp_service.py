@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from flask import current_app
+from sqlalchemy import case, update
 
 from app.extensions import db
 from app.models.otp import OtpCode
@@ -12,29 +13,44 @@ OTP_LENGTH = 6
 
 
 def _hash_code(code: str) -> str:
-    """HMAC-SHA256 keyed with the app's JWT secret as a pepper. Fast is fine
-    here (unlike password hashing) because brute force is already blocked by
-    short expiry + a hard attempt limit, not hashing cost."""
     key = current_app.config["JWT_SECRET_KEY"].encode()
     return hmac.new(key, code.encode(), hashlib.sha256).hexdigest()
 
 
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def generate_otp() -> str:
-    """Cryptographically secure 6-digit code - not random.randint, which is
-    predictable and unsuitable for anything security-sensitive."""
-    return "".join(str(secrets.randbelow(10)) for _ in range(OTP_LENGTH))
-
-
-def create_otp_for_user(user_id: str, purpose: str = "password_reset") -> str:
-    """Invalidates any previous unused OTPs for this purpose, then issues a
-    fresh one. Returns the RAW code (only time it ever exists in plaintext) -
-    caller is responsible for sending it and then discarding it immediately."""
-    OtpCode.query.filter_by(user_id=user_id, purpose=purpose, is_used=False).update(
-        {"is_used": True}
+    return "".join(
+        str(secrets.randbelow(10))
+        for _ in range(OTP_LENGTH)
     )
 
+
+def create_otp_for_user(
+    user_id: str,
+    purpose: str = "password_reset",
+) -> tuple[str, str]:
+    """Create a new OTP and invalidate previous recovery credentials."""
+
+    previous_otps = OtpCode.query.filter_by(
+        user_id=user_id,
+        purpose=purpose,
+    ).all()
+
+    for previous in previous_otps:
+        if not previous.is_used or previous.reset_token_hash:
+            previous.is_used = True
+            previous.reset_token_hash = None
+            previous.reset_token_expires_at = None
+
     raw_code = generate_otp()
-    expiry_minutes = current_app.config.get("OTP_EXPIRY_MINUTES", 10)
+
+    expiry_minutes = current_app.config.get(
+        "OTP_EXPIRY_MINUTES",
+        10,
+    )
 
     otp = OtpCode(
         user_id=user_id,
@@ -42,39 +58,147 @@ def create_otp_for_user(user_id: str, purpose: str = "password_reset") -> str:
         purpose=purpose,
         expires_at=datetime.utcnow() + timedelta(minutes=expiry_minutes),
     )
+
     db.session.add(otp)
     db.session.commit()
 
-    return raw_code
+    return raw_code, otp.id
 
 
-def verify_otp(user_id: str, submitted_code: str, purpose: str = "password_reset") -> bool:
-    """Checks the most recent unused OTP for this user+purpose. Increments
-    attempts on every check (even wrong ones) and locks it out permanently
-    after too many tries, regardless of expiry."""
+def invalidate_otp(otp_id: str) -> None:
+    """Invalidate a specific OTP if its delivery fails."""
+
+    otp = db.session.get(OtpCode, otp_id)
+
+    if otp:
+        otp.is_used = True
+        otp.reset_token_hash = None
+        otp.reset_token_expires_at = None
+        db.session.commit()
+
+
+def verify_reset_code(
+    user_id: str,
+    submitted_code: str,
+    purpose: str = "password_reset",
+) -> str | None:
+    """
+    Verify an OTP and atomically consume it.
+
+    Only one concurrent request can successfully consume an OTP.
+    Only the hash of the generated reset token is stored.
+    """
+
     max_attempts = current_app.config.get("OTP_MAX_ATTEMPTS", 5)
 
     otp = (
-        OtpCode.query.filter_by(user_id=user_id, purpose=purpose, is_used=False)
+        OtpCode.query.filter_by(
+            user_id=user_id,
+            purpose=purpose,
+            is_used=False,
+        )
         .order_by(OtpCode.created_at.desc())
         .first()
     )
 
-    if not otp or not otp.is_valid():
-        return False
+    if not otp:
+        return None
+
+    now = datetime.utcnow()
 
     if otp.attempts >= max_attempts:
-        otp.is_used = True
+        db.session.execute(
+            update(OtpCode)
+            .where(
+                OtpCode.id == otp.id,
+                OtpCode.is_used.is_(False),
+            )
+            .values(is_used=True)
+        )
         db.session.commit()
-        return False
+        return None
 
-    otp.attempts += 1
+    if otp.expires_at <= now:
+        return None
 
     submitted_hash = _hash_code(submitted_code)
-    is_correct = hmac.compare_digest(submitted_hash, otp.code_hash)
 
-    if is_correct:
-        otp.is_used = True
+    if not hmac.compare_digest(submitted_hash, otp.code_hash):
+        result = db.session.execute(
+            update(OtpCode)
+            .where(
+                OtpCode.id == otp.id,
+                OtpCode.is_used.is_(False),
+                OtpCode.attempts < max_attempts,
+                OtpCode.expires_at > now,
+            )
+            .values(
+                attempts=OtpCode.attempts + 1,
+                is_used=case(
+                    (
+                        OtpCode.attempts + 1 >= max_attempts,
+                        True,
+                    ),
+                    else_=False,
+                ),
+            )
+        )
+
+        db.session.commit()
+
+        if result.rowcount != 1:
+            return None
+
+        return None
+
+    raw_token = secrets.token_urlsafe(32)
+
+    expiry_minutes = current_app.config.get(
+        "RESET_TOKEN_EXPIRY_MINUTES",
+        10,
+    )
+
+    result = db.session.execute(
+        update(OtpCode)
+        .where(
+            OtpCode.id == otp.id,
+            OtpCode.is_used.is_(False),
+            OtpCode.code_hash == submitted_hash,
+            OtpCode.attempts < max_attempts,
+            OtpCode.expires_at > now,
+        )
+        .values(
+            is_used=True,
+            attempts=OtpCode.attempts + 1,
+            reset_token_hash=_hash_reset_token(raw_token),
+            reset_token_expires_at=(
+                now + timedelta(minutes=expiry_minutes)
+            ),
+        )
+    )
 
     db.session.commit()
-    return is_correct
+
+    if result.rowcount != 1:
+        return None
+
+    return raw_token
+
+
+def find_valid_reset_token(raw_token: str) -> OtpCode | None:
+    """Find an unused, unexpired reset authorization."""
+
+    token_hash = _hash_reset_token(raw_token)
+
+    otp = OtpCode.query.filter_by(
+        reset_token_hash=token_hash,
+        purpose="password_reset",
+    ).first()
+
+    if not otp or not otp.reset_token_expires_at:
+        return None
+
+    if datetime.utcnow() >= otp.reset_token_expires_at:
+        return None
+
+    return otp
