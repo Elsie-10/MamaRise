@@ -1,5 +1,8 @@
 import unittest
 
+from datetime import datetime, timedelta
+from app.models.check_in import CheckIn
+
 from app import create_app
 from app.extensions import db
 from app.models.user import User, UserRole
@@ -74,6 +77,25 @@ class EntitlementsApiTests(unittest.TestCase):
             db.session.add(subscription)
             db.session.commit()
 
+    def create_checkin(
+        self,
+        user_id,
+        mood_score,
+        stress_score,
+        sleep_hours,
+        created_at,
+    ):
+        with self.app.app_context():
+            checkin = CheckIn(
+                user_id=user_id,
+                mood_score=mood_score,
+                stress_score=stress_score,
+                sleep_hours=sleep_hours,
+                created_at=created_at,
+            )
+            db.session.add(checkin)
+            db.session.commit()
+            return checkin.id
 
     def get_entitlements(self, user_id):
         return self.client.get(
@@ -224,7 +246,153 @@ class EntitlementsApiTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        
+
+    def test_free_mother_cannot_access_actual_advanced_insights(self):
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights",
+            headers=self.authenticate(self.mother_id),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "PREMIUM_REQUIRED",
+        )
+
+    def test_active_premium_mother_can_access_actual_advanced_insights(self):
+        self.set_subscription(
+            self.mother_id,
+            SubscriptionTier.PREMIUM.value,
+            SubscriptionStatus.ACTIVE.value,
+        )
+
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights",
+            headers=self.authenticate(self.mother_id),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.get_json()["data"]
+
+        self.assertEqual(data["period_days"], 30)
+        self.assertEqual(data["checkin_count"], 0)
+        self.assertEqual(data["checkin_days"], 0)
+        self.assertEqual(data["consistency_percentage"], 0.0)
+        self.assertIsNone(data["averages"]["mood"])
+        self.assertIsNone(data["averages"]["stress"])
+        self.assertIsNone(data["averages"]["sleep_hours"])
+        self.assertIn("observations", data)
+
+    def test_unauthenticated_advanced_insights_request_is_rejected(self):
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights"
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_invalid_advanced_insights_period_is_rejected(self):
+        self.set_subscription(
+            self.mother_id,
+            SubscriptionTier.PREMIUM.value,
+            SubscriptionStatus.ACTIVE.value,
+        )
+
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights?days=14",
+            headers=self.authenticate(self.mother_id),
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.get_json()["error"]["code"],
+            "VALIDATION_ERROR",
+        )
+
+    def test_advanced_insights_calculates_trends_correctly(self):
+        self.set_subscription(
+            self.mother_id,
+            SubscriptionTier.PREMIUM.value,
+            SubscriptionStatus.ACTIVE.value,
+        )
+
+        now = datetime.now()
+
+        # Earlier period: lower mood, higher stress, less sleep.
+        self.create_checkin(
+            self.mother_id, 2, 4, 6.0, now - timedelta(days=25)
+        )
+        self.create_checkin(
+            self.mother_id, 2, 4, 6.0, now - timedelta(days=20)
+        )
+
+        # Later period: higher mood, lower stress, more sleep.
+        self.create_checkin(
+            self.mother_id, 4, 2, 8.0, now - timedelta(days=10)
+        )
+        self.create_checkin(
+            self.mother_id, 4, 2, 8.0, now - timedelta(days=5)
+        )
+
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights?days=30",
+            headers=self.authenticate(self.mother_id),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.get_json()["data"]
+
+        self.assertEqual(data["checkin_count"], 4)
+        self.assertEqual(data["averages"]["mood"], 3.0)
+        self.assertEqual(data["averages"]["stress"], 3.0)
+        self.assertEqual(data["averages"]["sleep_hours"], 7.0)
+
+        self.assertEqual(data["trends"]["mood"]["direction"], "improving")
+        self.assertEqual(data["trends"]["stress"]["direction"], "improving")
+        self.assertEqual(data["trends"]["sleep"]["direction"], "improving")
+
+
+    def test_advanced_insights_only_uses_authenticated_mothers_records(self):
+        self.set_subscription(
+            self.mother_id,
+            SubscriptionTier.PREMIUM.value,
+            SubscriptionStatus.ACTIVE.value,
+        )
+
+        with self.app.app_context():
+            other_mother_id = self.create_user(
+                "anothermother@example.com",
+                UserRole.MOTHER.value,
+            )
+
+        now = datetime.now()
+
+        self.create_checkin(
+            self.mother_id, 4, 2, 8.0, now - timedelta(days=5)
+        )
+
+        # Another mother's records must never enter this calculation.
+        self.create_checkin(
+            other_mother_id, 1, 5, 3.0, now - timedelta(days=4)
+        )
+        self.create_checkin(
+            other_mother_id, 1, 5, 3.0, now - timedelta(days=3)
+        )
+
+        response = self.client.get(
+            "/api/v1/wellbeing/advanced-insights",
+            headers=self.authenticate(self.mother_id),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.get_json()["data"]
+
+        self.assertEqual(data["checkin_count"], 1)
+        self.assertEqual(data["averages"]["mood"], 4.0)
+        self.assertEqual(data["averages"]["stress"], 2.0)
+        self.assertEqual(data["averages"]["sleep_hours"], 8.0)
 if __name__ == "__main__":
     unittest.main()
 

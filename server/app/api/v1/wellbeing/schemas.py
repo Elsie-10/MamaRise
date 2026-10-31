@@ -11,3 +11,10 @@ class CreateCheckInSchema(Schema):
 class ListCheckInsQuerySchema(Schema):
     page = fields.Int(required=False, load_default=1, validate=validate.Range(min=1))
     per_page = fields.Int(required=False, load_default=20, validate=validate.Range(min=1, max=100))
+
+class AdvancedInsightsQuerySchema(Schema):
+    days = fields.Int(
+        required=False,
+        load_default=30,
+        validate=validate.OneOf([7, 30, 90]),
+    )

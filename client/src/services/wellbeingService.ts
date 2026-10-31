@@ -54,6 +54,43 @@ export interface BreathingExercise {
   repeat: number;
 }
 
+// Premium advanced wellbeing insights
+
+export type InsightsPeriod = 7 | 30 | 90;
+
+export type TrendDirection =
+  | "improving"
+  | "declining"
+  | "stable"
+  | "insufficient_data";
+
+export interface WellbeingTrend {
+  direction: TrendDirection;
+  change: number | null;
+}
+
+export interface AdvancedWellbeingInsights {
+  period_days: number;
+  checkin_count: number;
+  checkin_days: number;
+  consistency_percentage: number;
+
+  averages: {
+    mood: number | null;
+    stress: number | null;
+    sleep_hours: number | null;
+  };
+
+  trends: {
+    mood: WellbeingTrend;
+    stress: WellbeingTrend;
+    sleep: WellbeingTrend;
+  };
+
+  observations: string[];
+  disclaimer: string;
+}
+
 async function extractData<T>(
   request: Promise<{ data: ApiResponse<T> }>,
 ): Promise<T> {
@@ -105,6 +142,19 @@ export function getWellbeingSummary(days = 7): Promise<WellbeingSummary> {
     api.get<ApiResponse<WellbeingSummary>>("/wellbeing/summary", {
       params: { days },
     }),
+  );
+}
+
+export function getAdvancedWellbeingInsights(
+  days: InsightsPeriod = 30,
+): Promise<AdvancedWellbeingInsights> {
+  return extractData(
+    api.get<ApiResponse<AdvancedWellbeingInsights>>(
+      "/wellbeing/advanced-insights",
+      {
+        params: { days },
+      },
+    ),
   );
 }
 

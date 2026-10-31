@@ -11,12 +11,22 @@ from app.services.wellbeing_service import (
     should_suggest_breathing_exercise,
     BREATHING_EXERCISE,
 )
+from app.api.v1.wellbeing.schemas import (
+    CreateCheckInSchema,
+    ListCheckInsQuerySchema,
+    AdvancedInsightsQuerySchema,
+)
+
+from app.services.advanced_wellbeing_service import get_advanced_wellbeing_insights
+from app.security.permissions import feature_required
+
 from app.utils.responses import success_response, error_response
 
 wellbeing_bp = Blueprint("wellbeing", __name__, url_prefix="/api/v1/wellbeing")
 
 create_checkin_schema = CreateCheckInSchema()
 list_query_schema = ListCheckInsQuerySchema()
+advanced_insights_schema = AdvancedInsightsQuerySchema()
 
 
 @wellbeing_bp.route("/checkins", methods=["POST"])
@@ -111,3 +121,25 @@ def get_breathing_exercise():
     """Static content, not user data - same response for everyone. Kept
     behind auth anyway since it's still an app resource, not public API."""
     return success_response(BREATHING_EXERCISE)
+
+@wellbeing_bp.route("/advanced-insights", methods=["GET"])
+@feature_required("advanced_wellbeing_insights")
+def get_advanced_insights():
+    """Return private, Premium-only wellbeing insights for the authenticated mother."""
+    try:
+        params = advanced_insights_schema.load(request.args)
+    except ValidationError as err:
+        return error_response(
+            "VALIDATION_ERROR",
+            "Invalid analytics period. Choose 7, 30, or 90 days.",
+            422,
+            err.messages,
+        )
+
+    user_id = get_jwt_identity()
+    insights = get_advanced_wellbeing_insights(
+        user_id=user_id,
+        days=params["days"],
+    )
+
+    return success_response(insights)

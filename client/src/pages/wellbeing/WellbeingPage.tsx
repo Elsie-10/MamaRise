@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { useFeatureAccess } from "../../hooks/useFeatureAccess";
+
+import {
+  getAdvancedWellbeingInsights,
+  type AdvancedWellbeingInsights,
+  type InsightsPeriod,
+} from "../../services/wellbeingService";
+
 import {
   Activity,
   ArrowRight,
@@ -180,13 +190,29 @@ function ScoreSelector({
 }
 
 export default function WellbeingPage() {
+  // Keep period state above callbacks that depend on it.
+  const [selectedPeriod, setSelectedPeriod] = useState(7);
+  const [historyPage, setHistoryPage] = useState(1);
+
+  const navigate = useNavigate();
+
+  const {
+    hasAccess: hasAdvancedInsightsAccess,
+    isLoading: isEntitlementsLoading,
+    error: entitlementError,
+    refreshEntitlements,
+  } = useFeatureAccess("advanced_wellbeing_insights");
+
+  const [advancedInsights, setAdvancedInsights] =
+    useState<AdvancedWellbeingInsights | null>(null);
+
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState("");
+
   const [today, setToday] = useState<TodayCheckinResponse | null>(null);
   const [summary, setSummary] = useState<WellbeingSummary | null>(null);
   const [history, setHistory] = useState<CheckinHistoryResponse | null>(null);
   const [exercise, setExercise] = useState<BreathingExercise | null>(null);
-
-  const [selectedPeriod, setSelectedPeriod] = useState(7);
-  const [historyPage, setHistoryPage] = useState(1);
 
   const [moodScore, setMoodScore] = useState(3);
   const [stressScore, setStressScore] = useState(3);
@@ -204,6 +230,45 @@ export default function WellbeingPage() {
   const [breathingStep, setBreathingStep] = useState(0);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [completedCycles, setCompletedCycles] = useState(0);
+
+  // Load advanced insights only when the user has active Premium access.
+  const loadAdvancedInsights = useCallback(async () => {
+    if (!hasAdvancedInsightsAccess) {
+      setAdvancedInsights(null);
+      return;
+    }
+
+    setIsInsightsLoading(true);
+    setInsightsError("");
+
+    try {
+      const result = await getAdvancedWellbeingInsights(
+        selectedPeriod as InsightsPeriod,
+      );
+
+      setAdvancedInsights(result);
+    } catch (error) {
+      setInsightsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load your advanced wellbeing insights.",
+      );
+    } finally {
+      setIsInsightsLoading(false);
+    }
+  }, [hasAdvancedInsightsAccess, selectedPeriod]);
+
+  useEffect(() => {
+    if (isEntitlementsLoading || !hasAdvancedInsightsAccess) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void loadAdvancedInsights();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isEntitlementsLoading, hasAdvancedInsightsAccess, loadAdvancedInsights]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -747,6 +812,199 @@ export default function WellbeingPage() {
               Your wellbeing trends will appear here as you complete check-ins.
             </p>
           </div>
+        )}
+      </section>
+
+      {/* Advanced wellbeing insights */}
+      <section className={card}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-cyan-600" />
+              <h2 className="text-lg font-semibold text-slate-900">
+                Advanced wellbeing insights
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              Understand patterns in your mood, stress, sleep, and check-in
+              consistency.
+            </p>
+          </div>
+        </div>
+
+        {isEntitlementsLoading ? (
+          <div className="mt-6 flex items-center gap-3 text-sm text-slate-500">
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+            Checking your feature access...
+          </div>
+        ) : entitlementError ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              We couldn't verify your Premium access.
+            </p>
+            <button
+              type="button"
+              onClick={() => void refreshEntitlements()}
+              className="mt-3 text-sm font-semibold text-amber-900 underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : !hasAdvancedInsightsAccess ? (
+          <div className="mt-5 rounded-xl border border-cyan-100 bg-cyan-50/70 p-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-white p-2">
+                <Sparkles className="h-6 w-6 text-cyan-600" />
+              </div>
+
+              <div className="flex-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-cyan-700">
+                  Mother Premium
+                </span>
+
+                <h3 className="mt-1 font-semibold text-slate-900">
+                  Discover more about your wellbeing patterns
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Get detailed wellbeing averages, consistency tracking, trend
+                  analysis, and observations based on your check-ins.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/billing")}
+                  className="inline-flex h-12 items-center rounded-full bg-white/90 pr-6 text-sm font-bold text-[#626569] transition hover:bg-white"
+                >
+                  <span className="mr-3 flex aspect-square h-full items-center justify-center rounded-full border-2 border-[#3cc3dd] bg-[#e6f5f8] text-[#3cc3dd]">
+                    <Sparkles size={18} />
+                  </span>
+                  Explore Premium
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : isInsightsLoading ? (
+          <div className="mt-6 flex items-center gap-3 text-sm text-slate-500">
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+            Analysing your wellbeing check-ins...
+          </div>
+        ) : insightsError ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">{insightsError}</p>
+            <button
+              type="button"
+              onClick={() => void loadAdvancedInsights()}
+              className="mt-3 text-sm font-semibold text-amber-900 underline"
+            >
+              Retry insights
+            </button>
+          </div>
+        ) : !advancedInsights ? (
+          <p className="mt-5 text-sm text-slate-500">
+            Your insights are currently unavailable. Please try again.
+          </p>
+        ) : advancedInsights.checkin_count === 0 ? (
+          <div className="mt-5 rounded-xl bg-slate-50 p-5">
+            <p className="font-medium text-slate-800">
+              Not enough check-in data yet
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Keep recording your daily wellbeing check-ins. Your insights will
+              appear as more data becomes available.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                icon={Activity}
+                title="Total check-ins"
+                value={String(advancedInsights.checkin_count)}
+                description={`Across the last ${advancedInsights.period_days} days`}
+              />
+
+              <MetricCard
+                icon={CheckCircle2}
+                title="Consistency"
+                value={`${advancedInsights.consistency_percentage}%`}
+                description={`${advancedInsights.checkin_days} days with check-ins`}
+              />
+
+              <MetricCard
+                icon={Heart}
+                title="Average mood"
+                value={
+                  advancedInsights.averages.mood !== null
+                    ? `${advancedInsights.averages.mood}/5`
+                    : "Not enough data"
+                }
+                description="Based on recorded mood scores"
+              />
+
+              <MetricCard
+                icon={Moon}
+                title="Average sleep"
+                value={
+                  advancedInsights.averages.sleep_hours !== null
+                    ? `${advancedInsights.averages.sleep_hours} hrs`
+                    : "Not enough data"
+                }
+                description="Based on recorded sleep hours"
+              />
+            </div>
+
+            <div className="mt-6">
+              <h3 className="font-semibold text-slate-900">Wellbeing trends</h3>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["Mood", advancedInsights.trends.mood.direction],
+                  ["Stress", advancedInsights.trends.stress.direction],
+                  ["Sleep", advancedInsights.trends.sleep.direction],
+                ].map(([label, direction]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-slate-200 p-4"
+                  >
+                    <p className="text-sm text-slate-500">{label}</p>
+                    <p className="mt-2 font-semibold capitalize text-slate-800">
+                      {direction.replaceAll("_", " ")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="font-semibold text-slate-900">
+                Personal observations
+              </h3>
+
+              {advancedInsights.observations.length > 0 ? (
+                <ul className="mt-3 space-y-3">
+                  {advancedInsights.observations.map((observation, index) => (
+                    <li
+                      key={index}
+                      className="flex gap-3 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-700"
+                    >
+                      <Sparkles className="mt-1 h-4 w-4 shrink-0 text-cyan-600" />
+                      {observation}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">
+                  More check-ins are needed before we can identify useful
+                  patterns.
+                </p>
+              )}
+            </div>
+
+            <p className="mt-5 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">
+              {advancedInsights.disclaimer}
+            </p>
+          </>
         )}
       </section>
 
