@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from marshmallow import ValidationError
+from app.services.entitlement_service import build_entitlements
 
 from app.extensions import db
 from app.models.billing import (
@@ -48,6 +49,20 @@ def get_subscription():
     sub = _get_or_create_subscription(user_id)
     return success_response(sub.to_dict())
 
+@billing_bp.route("/entitlements", methods=["GET"])
+@jwt_required()
+def get_entitlements():
+    user_id = get_jwt_identity()
+
+    user = db.session.get(User, user_id)
+    if not user:
+        return error_response("NOT_FOUND", "User not found.", 404)
+
+    subscription = _get_or_create_subscription(user_id)
+
+    return success_response(
+        build_entitlements(user, subscription)
+    )
 
 @billing_bp.route("/subscription/upgrade", methods=["POST"])
 @jwt_required()
