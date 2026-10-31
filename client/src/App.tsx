@@ -7,6 +7,7 @@ import WellbeingPage from "./pages/wellbeing/WellbeingPage";
 import PlannerPage from "./pages/planner/PlannerPage";
 import AppointmentsPage from "./pages/appointments/AppointmentsPage";
 import BillingPage from "./pages/billing/BillingPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 import AppLayout from "./layouts/AppLayout";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -27,6 +28,7 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthPage />} />
       <Route path="/register" element={<AuthPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
       {/* Shared authenticated pages */}
       <Route element={<ProtectedRoute />}>

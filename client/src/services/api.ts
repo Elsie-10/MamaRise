@@ -9,6 +9,15 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
+const PUBLIC_AUTH_ENDPOINTS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/refresh",
+  "/auth/forgot-password",
+  "/auth/verify-reset-code",
+  "/auth/reset-password",
+];
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -19,6 +28,10 @@ export const api = axios.create({
 
 // Separate request client prevents refresh interceptor recursion.
 let refreshPromise: Promise<string> | null = null;
+
+function isPublicAuthEndpoint(url?: string): boolean {
+  return PUBLIC_AUTH_ENDPOINTS.some((endpoint) => url?.includes(endpoint));
+}
 
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = tokenStorage.getRefreshToken();
@@ -51,12 +64,14 @@ async function refreshAccessToken(): Promise<string> {
   return access_token;
 }
 
-// Attach the access token to outgoing requests.
+// Attach the access token only to authenticated requests.
 api.interceptors.request.use((config) => {
-  const accessToken = tokenStorage.getAccessToken();
+  if (!isPublicAuthEndpoint(config.url)) {
+    const accessToken = tokenStorage.getAccessToken();
 
-  if (accessToken) {
-    config.headers.set("Authorization", `Bearer ${accessToken}`);
+    if (accessToken) {
+      config.headers.set("Authorization", `Bearer ${accessToken}`);
+    }
   }
 
   return config;
@@ -68,16 +83,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    const isAuthEndpoint =
-      originalRequest?.url?.includes("/auth/login") ||
-      originalRequest?.url?.includes("/auth/register") ||
-      originalRequest?.url?.includes("/auth/refresh");
-
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
       originalRequest._retry ||
-      isAuthEndpoint
+      isPublicAuthEndpoint(originalRequest.url)
     ) {
       return Promise.reject(error);
     }

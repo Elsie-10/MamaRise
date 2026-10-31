@@ -38,6 +38,7 @@ export async function registerUser(payload: RegisterPayload): Promise<User> {
 }
 
 export async function loginUser(payload: LoginPayload): Promise<User> {
+  
   const response = await api.post<ApiResponse<AuthResponse>>(
     "/auth/login",
     payload,
@@ -54,6 +55,28 @@ export async function loginUser(payload: LoginPayload): Promise<User> {
   tokenStorage.setTokens(access_token, refresh_token);
 
   return user;
+}
+
+type RecoveryContact =
+  | { phone_number: string; email?: never }
+  | { email: string; phone_number?: never };
+
+type VerifyResetCodePayload = RecoveryContact & {
+  otp_code: string;
+};
+
+interface ResetPasswordPayload {
+  reset_token: string;
+  new_password: string;
+}
+
+interface PasswordResetResponse {
+  message: string;
+}
+
+interface VerifyResetCodeResponse {
+  reset_token: string;
+  message: string;
 }
 
 export async function logoutUser(): Promise<void> {
@@ -74,4 +97,53 @@ export async function getCurrentUser(): Promise<User> {
   }
 
   return result.data;
+}
+
+export async function forgotPassword(payload: RecoveryContact): Promise<void> {
+  const response = await api.post<ApiResponse<PasswordResetResponse>>(
+    "/auth/forgot-password",
+    payload,
+  );
+
+  const result = response.data;
+
+  if (!result.success || !result.data) {
+    throw new Error(
+      result.error?.message ?? "Unable to process recovery request",
+    );
+  }
+}
+
+export async function verifyResetCode(
+  payload: VerifyResetCodePayload,
+): Promise<string> {
+  const response = await api.post<ApiResponse<VerifyResetCodeResponse>>(
+    "/auth/verify-reset-code",
+    payload,
+  );
+
+  const result = response.data;
+
+  if (!result.success || !result.data) {
+    throw new Error(
+      result.error?.message ?? "Invalid or expired verification code",
+    );
+  }
+
+  return result.data.reset_token;
+}
+
+export async function resetPassword(
+  payload: ResetPasswordPayload,
+): Promise<void> {
+  const response = await api.post<ApiResponse<PasswordResetResponse>>(
+    "/auth/reset-password",
+    payload,
+  );
+
+  const result = response.data;
+
+  if (!result.success || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to reset password");
+  }
 }
